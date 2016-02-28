@@ -49,10 +49,13 @@ def angle_between_ori(v1):
     #return angle
 
 def eval_next_pos(cur_co,dest_co,v,power):
-    norm_power = normalize(dest_co-cur_co)*power
+    
+    v_target = dest_co-cur_co
+    #norm_power = normalize(dest_co-cur_co)*power
+    norm_power = v_target*power/np.linalg.norm(v_target)
     #print(norm_power, file=sys.stderr)
     next_co = cur_co + v + norm_power
-    angle = np.round(np.degrees(angle_between_ori(dest_co - cur_co)))
+    angle = np.round(np.degrees(angle_between_ori(v_target)))
     #print(np.round(np.degrees(angle_between_ori(dest_co - cur_co))), " " ,  dest_co - cur_co,file=sys.stderr)
     next_co = np.around(next_co)
     next_v = (v+norm_power)*0.85
@@ -64,7 +67,11 @@ def eval_next_pos(cur_co,dest_co,v,power):
     
 
 
-
+def find_parameter(myb):
+    for point in range(150):
+        for thrust in [10,40,90,150,200]:
+            for dest in [checkpoints[0],checkpoints[0],checkpoints[0]]:
+                a,b,c = eval_next_pos(myb["co"],dest,myb["speed"] ,thrust)
 
 def coord_str(co):
     #print(co, file=sys.stderr)
@@ -114,6 +121,9 @@ while True:
         bup = 0
     print(my_bots[0], file=sys.stderr)
     
+    
+    find_parameter(my_bots[0])
+    
     aa,bb,angle = eval_next_pos(my_bots[0]["co"],
                             checkpoints[my_bots[0]["ncp"]],
                             my_bots[0]["speed"],
@@ -131,6 +141,7 @@ while True:
 #    print("8000 4500 100")
 
 
+    
     
 
     
