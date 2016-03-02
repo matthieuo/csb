@@ -71,7 +71,7 @@ def check_good_orientation(bot_param,dest):
     if bot_param["angle"] == -1:
         return True #au debut on fait ce qu'on veut
     else:
-        obj_ang = angle_between_ori(dest - bot_param["co"]) #new angle if we turn the bot
+        obj_ang = np.degrees(angle_between_ori(dest - bot_param["co"])) #new angle if we turn the bot
         if abs(bot_param["angle"] - obj_ang) > 18:
             return False
         else:
@@ -146,12 +146,13 @@ def find_accel_until(bot_param,dest_co_,power,max_test):
 
 
 def compute_step_angle(coord,cur_ang,dest_obj): #how much step we need ?
-    target_angle = angle_between_ori(dest_obj - coord)
+    target_angle = np.degrees(angle_between_ori(dest_obj - coord))
 
-    step = np.ceil(abs(cur_ang - target_angle)/18)
+    #step = np.ceil(abs(cur_ang - target_angle)/18)
+    step = min(np.ceil(abs(cur_ang - target_angle)/18),np.ceil((360-abs(cur_ang - target_angle))/18))
     
     
-    print("dest_ob :",dest_obj," cord ",coord, file=sys.stderr)
+    print("step ",step," dest_ob :",dest_obj," cord ",coord, file=sys.stderr)
     print("Obj ang :",target_angle," cur_ang: ",cur_ang, file=sys.stderr)
     return step
 
@@ -180,8 +181,6 @@ previous_state = {}
 previous_state["phase"] = 1
 previous_state["ck"] = 0
 
-
-bup = 0
 
 laps = int(input())
 checkpoint_count = int(input())
@@ -264,16 +263,16 @@ while True:
                                                                 0,
                                                                 previous_state["steps"] + 6)
             
-
+            #print(found,file=sys.stderr)
             if not found:
                 #ok not found, the pod perhaps collision ?
                 #return to step 1
                 state["phase"] = 1 #different from previous condition because "ncp" was not updated
-
-
-
-
-
+            else:
+                state["phase"] = 3 #still phase 3
+                state["coord_pred"] = co_pred
+                state["ck"] = my_bots[0]["ncp"]
+                state["steps"] = int(step_pred)
 
 
     # *** FIND THE RIGHT ACTION ACORDING TO THE PHASE ***
@@ -283,10 +282,10 @@ while True:
     
     if state["phase"] == 1:
         #we turn with np power
-        print_action(checkpoints[my_bots[0]["ncp"]], 0, "")
+        print_action(checkpoints[my_bots[0]["ncp"]], 0, "S1")
     elif state["phase"] == 2:
         #ok on tartine
-        print_action(checkpoints[my_bots[0]["ncp"]], 200, "")
+        print_action(checkpoints[my_bots[0]["ncp"]], 200, "S2")
     elif state["phase"] == 3:
         #we need to turn the chip with 0 accel
         #find how much we turn
@@ -301,12 +300,10 @@ while True:
         
         print("-- obj",coord_obj, "co_p", state["coord_pred"], "tv ", trans_vector, "oc ", orient_coord ,file=sys.stderr)
         print(my_bots[0]["co"],file=sys.stderr)
-        print_action(orient_coord,0,"")
+        print_action(orient_coord,0,"S3")
    
     
    
-    print(coord_str(checkpoints[0]) + " 100")
+    print(coord_str(checkpoints[0]) + " 0")
    
     previous_state = state
-
-    
