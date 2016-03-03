@@ -118,7 +118,7 @@ def find_accel_until(bot_param,dest_co_,power,max_test):
     dest_co = dest_co_.copy()
     
     ang = 0
-    prev_ang = 0
+    prev_ang = bot_param["angle"]
 
     warning_angle = False
     
@@ -129,10 +129,10 @@ def find_accel_until(bot_param,dest_co_,power,max_test):
     for i in range(max_test): #100 max for a turn
         n_coord,speed,ang = eval_next_pos(coord,dest_co,speed,power)
 
-        if prev_ang !=0:
-            if min(np.ceil(abs(prev_ang - ang)),np.ceil((360-abs(prev_ang - ang)))) > 18:
-                print("** warning angle ", file=sys.stderr)
-                warning_angle = True
+        #if prev_ang !=0:
+        if min(np.ceil(abs(prev_ang - ang)),np.ceil((360-abs(prev_ang - ang)))) > 18:
+            print("** warning angle ", file=sys.stderr)
+            warning_angle = True
         
         prev_ang = ang
 
@@ -265,19 +265,30 @@ while True:
             co_pred = 0
             ang_pred = 0
             #compute different solutions based on different accel
+            
+            min_step = 9999
+            found_min = False
             for accele in [200,140,70,20]:
-                print("Accel tested ",accele,file=sys.stderr)
+                
                 
                 found,step_pred,co_pred,ang_pred,l,wa = find_accel_until(my_bots[0],
                                                                          checkpoints[my_bots[0]["ncp"]],
                                                                          accele,
                                                                          100)
+                                                                         
+                                                                    
                 #ok warning angle act
                 # if waring angle set, means we are too fast
+
                 
-                state["speed2"] = accele
+                print("Accel tested ",accele," step pred ",step_pred,file=sys.stderr)  
+                    
                 if not wa:
-                    break
+                    if step < min_step:
+                        state["speed2"] = accele
+                        min_step = step
+                        found_min = True
+                    #break
             
                 
                 #if not found:
@@ -285,6 +296,9 @@ while True:
                 #pas assez speed ? beuh
   
             
+            if not found_min:
+                #hot hot !
+                state["speed2"] = 0
             #how much step to turn the pod to target the next checpoint
             step = compute_step_angle(co_pred,
                                       ang_pred,
@@ -306,7 +320,10 @@ while True:
             #print("p2 - l_init ",l,file=sys.stderr)
             #print("p2 - list ",l_zero,file=sys.stderr)
             
-            if step_pred > 4:#step:
+      
+                
+            
+            if step_pred > 4 or step < 4:
                 #ok we have still time to turn, still phase 2
                 state["phase"] = 2
             else:
@@ -376,3 +393,6 @@ while True:
     #print(coord_str(checkpoints[0]) + " 200")
     #print(coord_str(checkpoints[0]) + " 0")
     previous_state = state
+
+
+    
