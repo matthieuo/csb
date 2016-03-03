@@ -118,7 +118,10 @@ def find_accel_until(bot_param,dest_co_,power,max_test):
     dest_co = dest_co_.copy()
     
     ang = 0
+    prev_ang = 0
 
+    warning_angle = False
+    
     list_coord = [] #list holds all the coord/speed computed
     
     intersect = (False,0)
@@ -126,8 +129,13 @@ def find_accel_until(bot_param,dest_co_,power,max_test):
     for i in range(max_test): #100 max for a turn
         n_coord,speed,ang = eval_next_pos(coord,dest_co,speed,power)
 
+        if prev_ang !=0:
+            if min(np.ceil(abs(prev_ang - ang)),np.ceil((360-abs(prev_ang - ang)))) > 18:
+                print("** warning angle ", file=sys.stderr)
+                warning_angle = True
         
-        print("fau - predicted coord", coord_str(n_coord), file=sys.stderr)
+        prev_ang = ang
+
         if circle_intersect(coord,n_coord,dest_co):
             intersect = (True,i)
             coord = n_coord
@@ -137,7 +145,7 @@ def find_accel_until(bot_param,dest_co_,power,max_test):
         coord = n_coord
 
      
-    return intersect[0],intersect[1],coord,ang,list_coord  #target angle (return a vector)
+    return intersect[0],intersect[1],coord,ang,list_coord,warning_angle  #target angle (return a vector)
 
 
 def find_how_much_zero(l,dest_co,step):
@@ -232,7 +240,7 @@ while True:
 
 
 
-    state= {}
+    state = {}
     #*** FIND IN WHICH PHASE WE ARE ***
     
     
@@ -241,6 +249,7 @@ while True:
         if check_good_orientation(my_bots[0],
                                   checkpoints[my_bots[0]["ncp"]]):
             state["phase"] = 2 #OK we can tartinate
+            state["speed2"] = 200
         else:
             state["phase"] = 1 #still in phase 1 since no orientation
 
@@ -253,19 +262,27 @@ while True:
         else:
             step = 0
             step_pred = 0
-
+            co_pred = 0
+            ang_pred = 0
             #compute different solutions based on different accel
-            #for accele in [20,70,140,200]:
-            #    print("Accel ",accele,file=sys.stderr)
-            accele = 200
-            found,step_pred,co_pred,ang_pred,l = find_accel_until(my_bots[0],
-                                                                  checkpoints[my_bots[0]["ncp"]],
-                                                                  accele,
-                                                                  100)
-
-            if not found:
-                raise Exception("ERROR NO INTERSECT")
-            #pas assez speed ? beuh
+            for accele in [200,140,70,20]:
+                print("Accel tested ",accele,file=sys.stderr)
+                
+                found,step_pred,co_pred,ang_pred,l,wa = find_accel_until(my_bots[0],
+                                                                         checkpoints[my_bots[0]["ncp"]],
+                                                                         accele,
+                                                                         100)
+                #ok warning angle act
+                # if waring angle set, means we are too fast
+                
+                state["speed2"] = accele
+                if not wa:
+                    break
+            
+                
+                #if not found:
+                #    raise Exception("ERROR NO INTERSECT")
+                #pas assez speed ? beuh
   
             
             #how much step to turn the pod to target the next checpoint
@@ -306,10 +323,10 @@ while True:
             #the checkpoint is passed, phase 4 (i.e phase 1) !
             state["phase"] = 1
         else:
-            found,step_pred,co_pred,ang_pred,l = find_accel_until(my_bots[0],
-                                                                  checkpoints[my_bots[0]["ncp"]],
-                                                                  0,
-                                                                  previous_state["steps"] + 6)
+            found,step_pred,co_pred,ang_pred,l,_ = find_accel_until(my_bots[0],
+                                                                    checkpoints[my_bots[0]["ncp"]],
+                                                                    0,
+                                                                    previous_state["steps"] + 6)
             
             
             print("p3 -step ",step_pred,found,file=sys.stderr)
@@ -335,7 +352,7 @@ while True:
         print_action(checkpoints[my_bots[0]["ncp"]], 0, "S1")
     elif state["phase"] == 2:
         #ok on tartine
-        print_action(checkpoints[my_bots[0]["ncp"]], 200, "S2")
+        print_action(checkpoints[my_bots[0]["ncp"]], state["speed2"], "S2")
     elif state["phase"] == 3:
         #we need to turn the chip with 0 accel
         #find how much we turn
