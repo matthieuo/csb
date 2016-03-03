@@ -3,11 +3,6 @@ import math
 import numpy as np
 
 
-
-
-    
-
-    
 def normalize(v):
     norm=np.linalg.norm(v)
     if norm==0: 
@@ -72,7 +67,8 @@ def check_good_orientation(bot_param,dest):
         return True #au debut on fait ce qu'on veut
     else:
         obj_ang = np.degrees(angle_between_ori(dest - bot_param["co"])) #new angle if we turn the bot
-        if abs(bot_param["angle"] - obj_ang) > 18:
+        
+        if min(np.ceil(abs(bot_param["angle"] - obj_ang)),np.ceil(360-abs(bot_param["angle"] - obj_ang))) > 18:
             return False
         else:
             return True
@@ -82,31 +78,32 @@ def check_good_orientation(bot_param,dest):
 def circle_intersect(seg_a, seg_b, circ_pos):
     
     seg_v = seg_b - seg_a
-    pt_v = circ_pos - seg_a
     
-    #if seg_v.len() <= 0:
-     #   raise Exception("Invalid segment length")
+    
+    pt_v = circ_pos - seg_a
 
+    if np.linalg.norm(seg_v) == 0:
+        return False
+    
+    if np.dot(seg_v,seg_v) <= 0:
+        print(" *** inf0 ",file=sys.stderr)
+        
     seg_v_unit = normalize(seg_v)
-    #seg_v_unit = seg_v / seg_v.len()
-    #proj = pt_v.dot(seg_v_unit)
     proj = np.dot(pt_v, seg_v_unit)
 
 
     closest = 0
     if proj <= 0:
         closest = seg_a
-        #return seg_a.copy()
-    if proj >= np.linalg.norm(seg_v): #seg_v.len():
+    elif proj >= np.linalg.norm(seg_v): #seg_v.len():
         closest = seg_b
-        #return seg_b.copy()
     else:
         proj_v = seg_v_unit * proj
         closest = proj_v + seg_a
 
-
     dist_v = circ_pos - closest #minimum distance between circle and segment
 
+    
     if np.linalg.norm(dist_v) < 600:  #checkpoint 600
         return True #intersection
     else:
@@ -122,38 +119,59 @@ def find_accel_until(bot_param,dest_co_,power,max_test):
     
     ang = 0
 
+    list_coord = [] #list holds all the coord/speed computed
+    
     intersect = (False,0)
     
     for i in range(max_test): #100 max for a turn
         n_coord,speed,ang = eval_next_pos(coord,dest_co,speed,power)
 
-        print("predicted coord", coord_str(n_coord), file=sys.stderr)
+        
+        print("fau - predicted coord", coord_str(n_coord), file=sys.stderr)
         if circle_intersect(coord,n_coord,dest_co):
             intersect = (True,i)
             coord = n_coord
             break
         
+        list_coord.insert(0,(n_coord,speed,ang))
         coord = n_coord
 
-    #if not intersect[0]:
-    #    raise "ERROR NO INTERSECT"
+     
+    return intersect[0],intersect[1],coord,ang,list_coord  #target angle (return a vector)
 
 
-    
-    
-    return intersect[0],intersect[1],coord,ang  #target angle (return a vector)
+def find_how_much_zero(l,dest_co,step):
+    #dest_co = dest_co_.copy()
+
+    ret_list = []
+    found = False
+    #list inversé, d'ou ca marchce
+    for coord,speed,_ in l[0:10]:  #on garde que les 4 premier
+        for i in range(7): #100 max for a turn
+            n_coord,speed,ang = eval_next_pos(coord,dest_co,speed,0)
+
+            #if np.norm(dest_co-coord) > np.norm(dest_co-n_coord):
+            
+            
+            if circle_intersect(coord,n_coord,dest_co):
+                    ret_list.append((i,speed))
+                    coord = n_coord
+                    found = True
+                    break 
+
+            coord = n_coord
 
 
+    return found,ret_list
 
 def compute_step_angle(coord,cur_ang,dest_obj): #how much step we need ?
     target_angle = np.degrees(angle_between_ori(dest_obj - coord))
 
-    #step = np.ceil(abs(cur_ang - target_angle)/18)
     step = min(np.ceil(abs(cur_ang - target_angle)/18),np.ceil((360-abs(cur_ang - target_angle))/18))
     
     
-    print("step ",step," dest_ob :",dest_obj," cord ",coord, file=sys.stderr)
-    print("Obj ang :",target_angle," cur_ang: ",cur_ang, file=sys.stderr)
+    #print("csa - step ",step," dest_ob :",dest_obj," cord ",coord, file=sys.stderr)
+    #print("csa - Obj ang :",target_angle," cur_ang: ",cur_ang, file=sys.stderr)
     return step
 
 
@@ -226,31 +244,61 @@ while True:
         else:
             state["phase"] = 1 #still in phase 1 since no orientation
 
+        state["ck"] = my_bots[0]["ncp"]
     elif previous_state["phase"] == 2:
-        found,step_pred,co_pred,ang_pred = find_accel_until(my_bots[0],
-                                                            checkpoints[my_bots[0]["ncp"]],
-                                                            200,  #accel 200 for nom
-                                                            100)
 
-        if not found:
-            raise Exception("ERROR NO INTERSECT")
-        
-        #how much step to turn the pod to target the next checpoint
-        step = compute_step_angle(co_pred,
-                                  ang_pred,
-                                  checkpoints[(my_bots[0]["ncp"] + 1)%checkpoint_count])
-        
-        print("Step :",step," step pred : ",step_pred,file=sys.stderr)
-        
-        
-        if step_pred > step:
-            #ok we have still time to turn, still phase 2
-            state["phase"] = 2
+        if previous_state["ck"] != my_bots[0]["ncp"]: #ck has changed, phase 1 !
+            state["phase"] = 1 
+            state["ck"] = my_bots[0]["ncp"]
         else:
-            #need to turn !
-            state["phase"] = 3
-            state["steps"] = int(step)
-            state["coord_pred"] = co_pred
+            step = 0
+            step_pred = 0
+
+            #compute different solutions based on different accel
+            #for accele in [20,70,140,200]:
+            #    print("Accel ",accele,file=sys.stderr)
+            accele = 200
+            found,step_pred,co_pred,ang_pred,l = find_accel_until(my_bots[0],
+                                                                  checkpoints[my_bots[0]["ncp"]],
+                                                                  accele,
+                                                                  100)
+
+            if not found:
+                raise Exception("ERROR NO INTERSECT")
+            #pas assez speed ? beuh
+  
+            
+            #how much step to turn the pod to target the next checpoint
+            step = compute_step_angle(co_pred,
+                                      ang_pred,
+                                      checkpoints[(my_bots[0]["ncp"] + 1)%checkpoint_count])
+        
+            print("Step :",step," step pred : ",step_pred,file=sys.stderr)
+
+
+            #    found,l_zero =  find_how_much_zero(l,
+            #                                      checkpoints[my_bots[0]["ncp"]],
+            #                                     step)
+            
+            #if not found:
+            #pas assez speed ?
+            #   continue
+            #raise Exception("ERROR NO INTERSECT -- 2 --")
+            
+            
+            #print("p2 - l_init ",l,file=sys.stderr)
+            #print("p2 - list ",l_zero,file=sys.stderr)
+            
+            if step_pred > 4:#step:
+                #ok we have still time to turn, still phase 2
+                state["phase"] = 2
+            else:
+                #need to turn !
+                state["phase"] = 3
+                state["steps"] = int(step)
+                state["coord_pred"] = co_pred
+                state["ck"] = my_bots[0]["ncp"]
+                
             state["ck"] = my_bots[0]["ncp"]
             
     elif previous_state["phase"] == 3:
@@ -258,11 +306,13 @@ while True:
             #the checkpoint is passed, phase 4 (i.e phase 1) !
             state["phase"] = 1
         else:
-            found,step_pred,co_pred,ang_pred = find_accel_until(my_bots[0],
-                                                                checkpoints[my_bots[0]["ncp"]],
-                                                                0,
-                                                                previous_state["steps"] + 6)
+            found,step_pred,co_pred,ang_pred,l = find_accel_until(my_bots[0],
+                                                                  checkpoints[my_bots[0]["ncp"]],
+                                                                  0,
+                                                                  previous_state["steps"] + 6)
             
+            
+            print("p3 -step ",step_pred,found,file=sys.stderr)
             #print(found,file=sys.stderr)
             if not found:
                 #ok not found, the pod perhaps collision ?
@@ -304,6 +354,8 @@ while True:
    
     
    
-    print(coord_str(checkpoints[0]) + " 0")
-   
+    print_action(adv_bots[0]["co"],100,"")
+ 
+    #print(coord_str(checkpoints[0]) + " 200")
+    #print(coord_str(checkpoints[0]) + " 0")
     previous_state = state
