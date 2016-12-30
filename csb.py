@@ -112,7 +112,7 @@ def circle_intersect(seg_a, seg_b, circ_pos):
 
 
 def find_accel_until(bot_param,dest_co_,power,max_test):
-    #return coord final and angle final (at the end of the for)
+    #return coord final and angle final (at the end of the loop)
     coord = bot_param["co"].copy()
     speed = bot_param["speed"].copy()
     dest_co = dest_co_.copy()
@@ -154,7 +154,7 @@ def find_how_much_zero(l,dest_co,step):
     ret_list = []
     found = False
     #list inversé, d'ou ca marchce
-    for coord,speed,_ in l[0:10]:  #on garde que les 4 premier
+    for coord,speed,_ in l[0:10]:  #on garde que les 4 premiers
         for i in range(7): #100 max for a turn
             n_coord,speed,ang = eval_next_pos(coord,dest_co,speed,0)
 
@@ -178,8 +178,7 @@ def compute_step_angle(coord,cur_ang,dest_obj): #how much step we need ?
     step = min(np.ceil(abs(cur_ang - target_angle)/18),np.ceil((360-abs(cur_ang - target_angle))/18))
     
     
-    #print("csa - step ",step," dest_ob :",dest_obj," cord ",coord, file=sys.stderr)
-    #print("csa - Obj ang :",target_angle," cur_ang: ",cur_ang, file=sys.stderr)
+
     return step
 
 
@@ -248,7 +247,7 @@ while True:
         #OK step 1, check orientation
         if check_good_orientation(my_bots[0],
                                   checkpoints[my_bots[0]["ncp"]]):
-            state["phase"] = 2 #OK we can tartinate
+            state["phase"] = 2 #OK we can speed
             state["speed2"] = 200
         else:
             state["phase"] = 1 #still in phase 1 since no orientation
@@ -256,7 +255,7 @@ while True:
         state["ck"] = my_bots[0]["ncp"]
     elif previous_state["phase"] == 2:
 
-        if previous_state["ck"] != my_bots[0]["ncp"]: #ck has changed, phase 1 !
+        if previous_state["ck"] != my_bots[0]["ncp"]: #ck change, phase 1 !
             state["phase"] = 1 
             state["ck"] = my_bots[0]["ncp"]
         else:
@@ -290,10 +289,6 @@ while True:
                         found_min = True
                     #break
             
-                
-                #if not found:
-                #    raise Exception("ERROR NO INTERSECT")
-                #pas assez speed ? beuh
   
             
             if not found_min:
@@ -307,18 +302,6 @@ while True:
             print("Step :",step," step pred : ",step_pred,file=sys.stderr)
 
 
-            #    found,l_zero =  find_how_much_zero(l,
-            #                                      checkpoints[my_bots[0]["ncp"]],
-            #                                     step)
-            
-            #if not found:
-            #pas assez speed ?
-            #   continue
-            #raise Exception("ERROR NO INTERSECT -- 2 --")
-            
-            
-            #print("p2 - l_init ",l,file=sys.stderr)
-            #print("p2 - list ",l_zero,file=sys.stderr)
             
       
                 
@@ -349,7 +332,7 @@ while True:
             print("p3 -step ",step_pred,found,file=sys.stderr)
             #print(found,file=sys.stderr)
             if not found:
-                #ok not found, the pod perhaps collision ?
+                #ok not found, perhaps collision ?
                 #return to step 1
                 state["phase"] = 1 #different from previous condition because "ncp" was not updated
             else:
